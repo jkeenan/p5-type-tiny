@@ -1,5 +1,28 @@
 use strict;
 use ExtUtils::MakeMaker 6.17;
+#####
+use Data::Dump qw(dd pp);
+use Carp;
+use File::Copy;
+use builtin qw(reftype);
+my $studydir = "$ENV{LP_DIR}/p5-Test-Vars/via-eumm";
+croak "Could not locate $studydir" unless -d $studydir;
+
+sub write_out_data {
+    my ($dataref, $studydir, $label) = @_;
+    croak "First argument to write_out_data() must be hashref"
+        unless reftype($dataref) eq 'HASH';
+    my $contents = "$studydir/${label}-type-tiny-meta.pl";
+    my $OUT;
+    my $oldfh = select($OUT);
+    open $OUT, '>', $contents
+        or croak "Unable to open $contents for writing";
+    dd $dataref;
+    close $OUT or croak "Unable to close $contents after writing";
+    select($oldfh);
+    return $contents;
+}
+#####
 
 my $EUMM = eval( $ExtUtils::MakeMaker::VERSION );
 
@@ -134,6 +157,8 @@ my $meta = {
   "x_breaks"       => { "Kavorka" => "<= 0.013", "Types::ReadOnly" => "<= 0.001" },
 };
 
+write_out_data($meta, $studydir, '1');
+
 my %dynamic_config;
 do {
 	use strict;
@@ -201,6 +226,9 @@ do {
 	}
 
 };
+
+write_out_data($meta, $studydir, '2');
+
 for my $stage (keys %{$meta->{prereqs}})
 {
 	my $conflicts = $meta->{prereqs}{$stage}{conflicts} or next;
@@ -226,6 +254,8 @@ for my $stage (keys %{$meta->{prereqs}})
 	}
 }
 
+write_out_data($meta, $studydir, '3');
+
 my %WriteMakefileArgs = (
 	ABSTRACT   => $meta->{abstract},
 	AUTHOR     => ($EUMM >= 6.5702 ? $meta->{author} : $meta->{author}[0]),
@@ -237,7 +267,11 @@ my %WriteMakefileArgs = (
 	%dynamic_config,
 );
 
+write_out_data({ %WriteMakefileArgs }, $studydir, '4');
+
 $WriteMakefileArgs{LICENSE} = $meta->{license}[0] if $EUMM >= 6.3001;
+
+write_out_data({ %WriteMakefileArgs }, $studydir, '5');
 
 sub deps
 {
@@ -295,8 +329,14 @@ else
 	}
 }
 
+write_out_data({ %WriteMakefileArgs }, $studydir, '6');
 
 my $mm = WriteMakefile(%WriteMakefileArgs);
+croak "Could not locate Makefile" unless -f './Makefile';
+copy('./Makefile' => './Makefile.unfixed')
+    or croak "Unable to copy";
+
+write_out_data($mm, $studydir, '7');
 
 sub FixMakefile
 {
